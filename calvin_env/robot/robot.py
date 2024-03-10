@@ -9,6 +9,18 @@ from calvin_env.robot.mixed_ik import MixedIK
 log = logging.getLogger(__name__)
 
 
+def multiply_quaternions(q1, q2):
+    x1, y1, z1, w1 = q1
+    x2, y2, z2, w2 = q2
+
+    w = -x1 * x2 - y1 * y2 - z1 * z2 + w1 * w2
+    x = x1 * w2 + y1 * z2 - z1 * y2 + w1 * x2
+    y = -x1 * z2 + y1 * w2 + z1 * x2 + w1 * y2
+    z = x1 * y2 - y1 * x2 + z1 * w2 + w1 * z2
+
+    return np.array([x, y, z, w])
+
+
 class Robot:
     def __init__(
         self,
@@ -242,6 +254,26 @@ class Robot:
             abs_orn = np.array(tcp_orn) + rel_orn
             return abs_pos, abs_orn, gripper
 
+    def relative_to_absolute2(self, action):
+        """
+        Works with relative quaternions instead of relative euler angles
+        """
+        assert len(action) == 8
+        action = np.copy(action)
+        rel_pos, rel_orn, gripper = np.split(action, [3, 7])
+        rel_pos *= self.max_rel_pos * self.magic_scaling_factor_pos
+
+        if self.use_target_pose:
+            self.target_pos += rel_pos
+            target_orn_quat = multiply_quaternions(rel_orn, np.array(p.getQuaternionFromEuler(self.target_orn)))
+            self.target_orn = p.getEulerFromQuaternion(target_orn_quat)
+            return self.target_pos, self.target_orn, gripper
+        else:
+            tcp_pos, tcp_orn = p.getLinkState(self.robot_uid, self.tcp_link_id, physicsClientId=self.cid)[:2]
+            abs_pos = np.array(tcp_pos) + rel_pos
+            abs_orn = multiply_quaternions(rel_orn, tcp_orn)
+            return abs_pos, abs_orn, gripper
+
     def apply_action(self, action):
         jnt_ps = None
         if isinstance(action, dict):
@@ -256,10 +288,13 @@ class Robot:
                 jnt_ps = action["action"][:7]
                 self.gripper_action = int(action["action"][-1])
             elif action["type"] == "cartesian_rel":
-                assert len(action["action"]) == 7
-                target_ee_pos, target_ee_orn, self.gripper_action = self.relative_to_absolute(action["action"])
-                if len(target_ee_orn) == 3:
-                    target_ee_orn = p.getQuaternionFromEuler(target_ee_orn)
+                assert len(action["action"]) in (7, 8)
+                if len(action["action"]) == 7:
+                    target_ee_pos, target_ee_orn, self.gripper_action = self.relative_to_absolute(action["action"])
+                    if len(target_ee_orn) == 3:
+                        target_ee_orn = p.getQuaternionFromEuler(target_ee_orn)
+                elif len(action["action"]) == 8:
+                    target_ee_pos, target_ee_orn, self.gripper_action = self.relative_to_absolute2(action["action"])
                 jnt_ps = self.mixed_ik.get_ik(target_ee_pos, target_ee_orn)
             elif action["type"] == "cartesian_abs":
                 if len(action["action"]) == 3:
@@ -281,6 +316,8 @@ class Robot:
         else:
             if len(action) == 7:
                 action = self.relative_to_absolute(action)
+            elif len(action) == 8:
+                action = self.relative_to_absolute2(action)
             target_ee_pos, target_ee_orn, self.gripper_action = action
 
             assert len(target_ee_pos) == 3
@@ -369,3 +406,10 @@ class Robot:
 
     def __str__(self):
         return f"{self.filename} : {self.__dict__}"
+
+    def update_target_pose(self):
+        tcp_pos, tcp_orn = p.getLinkState(self.robot_uid, self.tcp_link_id, physicsClientId=self.cid)[:2]
+        if self.euler_obs:
+            tcp_orn = p.getEulerFromQuaternion(tcp_orn)
+        self.target_pos = np.array(tcp_pos)
+        self.target_orn = np.array(tcp_orn)

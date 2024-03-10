@@ -69,7 +69,7 @@ class PlayTableSimEnv(gym.Env):
             )
             for name in cameras
         ]
-        log.info(f"Using calvin_env with commit {get_git_commit_hash(Path(calvin_env.__file__))}.")
+        # log.info(f"Using calvin_env with commit {get_git_commit_hash(Path(calvin_env.__file__))}.")
 
     def __del__(self):
         self.close()
@@ -292,8 +292,7 @@ def run_env(cfg):
 
     env.reset()
     while True:
-        action = {"action": np.array((0., 0, 0, 0, 0, 0, 1)),
-                  "type": "cartesian_rel"}
+        action = {"action": np.array((0.0, 0, 0, 0, 0, 0, 1)), "type": "cartesian_rel"}
         # cartesian actions can also be input directly as numpy arrays
         # action = np.array((0., 0, 0, 0, 0, 0, 1))
 
