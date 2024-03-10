@@ -36,7 +36,7 @@ meta = dict(
     keywords="calvin_env".split(),
     author=find_meta(_meta, "__author__"),
     author_email=find_meta(_meta, "__email__"),
-    url=" https://github.com/mees/calvin_env",
+    url=" https://github.com/acl21/calvin_env",
     packages=find_packages(exclude=["tests"]),
     install_requires=install_requires,
 )
