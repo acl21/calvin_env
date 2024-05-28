@@ -8,8 +8,7 @@ import hydra
 import pybullet as p
 import quaternion  # noqa
 
-from calvin_env.io_utils.data_recorder import DataRecorder
-from calvin_env.io_utils.vr_input import VrInput
+from calvin_env.io_utils.data_recorder2 import DataRecorder
 
 # A logger for this file
 log = logging.getLogger(__name__)
@@ -19,33 +18,26 @@ log = logging.getLogger(__name__)
 def main(cfg):
     # Load Scene
     env = hydra.utils.instantiate(cfg.env)
-    vr_input = hydra.utils.instantiate(cfg.vr_input)
+    vr_input = hydra.utils.instantiate(cfg.vr_input, robot=env.robot)
 
     data_recorder = None
     if cfg.recorder.record:
-        data_recorder = DataRecorder(env, cfg.recorder.record_fps, cfg.recorder.enable_tts)
+        data_recorder = DataRecorder(n_digits=6)
 
     log.info("Initialization done!")
     log.info("Entering Loop")
 
     record = False
-
-    while 1:
-        # get input events
-        action = vr_input.get_vr_action()
-        obs, _, _, info = env.step(action)
-        done = False
-        if vr_input.reset_button_pressed:
-            done = True
-        if vr_input.start_button_pressed:
-            record = True
-        if vr_input.reset_button_hold:
-            data_recorder.delete_episode()
-        if record and cfg.recorder.record:
-            data_recorder.step(vr_input.prev_vr_events, obs, done, info)
-        if done:
-            record = False
-            env.reset()
+    obs = env.reset()
+    while True:
+        action, record_info = vr_input.get_action()
+        if action is None:
+            next_obs = env.get_obs()
+        else:
+            next_obs, _, _, _ = env.step(action)
+        data_recorder.step(action, obs, record_info)
+        env.render()
+        obs = next_obs
 
 
 if __name__ == "__main__":

@@ -7,14 +7,40 @@ import re
 import subprocess
 import time
 from typing import Union
+import math
+from scipy.spatial.transform.rotation import Rotation as R
 
 import git
 import numpy as np
 import quaternion
+import multiprocessing as mp
 
 # A logger for this file
 logger = logging.getLogger(__name__)
 
+class TextToSpeech:
+    def __init__(self):
+        self.queue = mp.Queue()
+        self.process = mp.Process(target=self.tts_worker, name="TTS_worker")
+        self.process.daemon = True
+        self.process.start()
+
+    def say(self, text):
+        logger.info(text)
+        self.queue.put(text)
+
+    def tts_worker(self):
+        import pyttsx3
+        engine = pyttsx3.init()
+        engine.setProperty("rate", 175)
+        while True:
+            text = self.queue.get()
+            engine.say(text)
+            engine.runAndWait()
+
+def depth_img_to_uint16(depth_img, max_depth=4):
+    depth_img = np.clip(depth_img, 0, max_depth)
+    return (depth_img / max_depth * (2 ** 16 - 1)).astype('uint16')
 
 def timeit(method):
     def timed(*args, **kw):
@@ -127,7 +153,7 @@ def get_egl_device_id(cuda_id: int) -> Union[int]:
     """
     >>> i = get_egl_device_id(0)
     >>> isinstance(i, int)
-    True
+    Truewxyz_to_xyzw
     """
     assert isinstance(cuda_id, int), "cuda_id has to be integer"
     dir_path = Path(__file__).absolute().parents[2] / "egl_check"
@@ -226,6 +252,67 @@ def get_episode_lengths(load_dir, num_frames):
     render_start_end_ids = render_start_end_ids[:-1]
     return episode_lengths, render_start_end_ids
 
+def z_angle_between(a, b):
+    """
+    :param a: 3d vector
+    :param b: 3d vector
+    :return: signed angle between vectors around z axis (right handed rule)
+    """
+    return math.atan2(b[1], b[0]) - math.atan2(a[1], a[0])
+
+def pos_orn_to_matrix(pos, orn):
+    """
+    :param pos: np.array of shape (3,)
+    :param orn: np.array of shape (4,) -> quaternion xyzw
+                np.quaternion -> quaternion wxyz
+                np.array of shape (3,) -> euler angles xyz
+    :return: 4x4 homogeneous transformation
+    """
+    mat = np.eye(4)
+    if isinstance(orn, np.quaternion):
+        orn = wxyz_to_xyzw(orn)
+        mat[:3, :3] = R.from_quat(orn).as_matrix()
+    elif len(orn) == 4:
+        mat[:3, :3] = R.from_quat(orn).as_matrix()
+    elif len(orn) == 3:
+        mat[:3, :3] = R.from_euler('xyz', orn).as_matrix()
+    mat[:3, 3] = pos
+    return mat
+
+def restrict_workspace(workspace_limits, target_pos):
+    """
+    Clip target_pos at workspace limits.
+
+    Args:
+        workspace_limits: Either defined as a bounding box [[x_min, y_min, z_min], [x_max, y_max, z_max]]
+            or as a hollow cylinder [r_in, r_out, z_min, z_max].
+        target_pos: absolute target position (x,y,z).
+
+    Returns:
+        Clipped absolute target position (x,y,z).
+    """
+    if len(workspace_limits) == 2:
+        return np.clip(target_pos, workspace_limits[0], workspace_limits[1])
+    elif len(workspace_limits) == 4:
+        clipped_pos = target_pos.copy()
+        r_in = workspace_limits[0]
+        r_out = workspace_limits[1]
+        z_min = workspace_limits[2]
+        z_max = workspace_limits[3]
+        dist_center = np.sqrt(target_pos[0] ** 2 + target_pos[1] ** 2)
+        if dist_center > r_out:
+            theta = np.arctan2(target_pos[1], target_pos[0])
+            clipped_pos[0] = np.cos(theta) * r_out
+            clipped_pos[1] = np.sin(theta) * r_out
+        elif dist_center < r_in:
+            theta = np.arctan2(target_pos[1], target_pos[0])
+            clipped_pos[0] = np.cos(theta) * r_in
+            clipped_pos[1] = np.sin(theta) * r_in
+
+        clipped_pos[2] = np.clip(target_pos[2], z_min, z_max)
+        return clipped_pos
+    else:
+        raise ValueError
 
 if __name__ == "__main__":
     import doctest

@@ -1,0 +1,3 @@
+_target_: calvin_env.io_utils.data_recorder2.DataRecorder
+_recursive_: false
+n_digits: 6
