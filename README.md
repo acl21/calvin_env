@@ -1,3 +1,8 @@
+Added changes: 
+- Support for relative quaternions
+- VR teleoperation same as that of robot_io's
+
+---
 # calvin_env
 
 
