@@ -188,7 +188,8 @@ class VrInput:
         Args:
             vr_action (tuple): The current vr controller position, orientation and gripper action.
         """
-        pos, orn = self.robot.target_pos, self.robot.target_orn
+        robot_obs = self.robot.get_observation()
+        pos, orn = np.array(robot_obs[1]["tcp_pos"]), np.array(robot_obs[1]["tcp_orn"])
         T_VR = self.vr_coord_rotation @ utils.pos_orn_to_matrix(vr_action[0], vr_action[1])
 
         self.robot_start_pos_offset = pos - T_VR[:3, 3]
