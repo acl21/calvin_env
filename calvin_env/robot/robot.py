@@ -297,11 +297,11 @@ class Robot:
         self.control_motors(jnt_ps)
 
     def control_motors(self, joint_positions):
-        for i in range(self.end_effector_link_id):
+        for i in range(len(joint_positions)):
             # p.resetJointState(self.robot_uid, i, jnt_ps[i])
             p.setJointMotorControl2(
                 bodyIndex=self.robot_uid,
-                jointIndex=i,
+                jointIndex=self.arm_joint_ids[i],
                 controlMode=p.POSITION_CONTROL,
                 force=self.max_joint_force,
                 targetPosition=joint_positions[i],
