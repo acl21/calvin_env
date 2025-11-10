@@ -16,5 +16,5 @@ pip install -e .
 python calvin_env/envs/play_table_env.py
 ```
 
-## Replace Panda with UR5
-Replace ```panda_longer_finger``` with ```ur5``` in ```calvin_env/conf/config_data_collection.yaml```
+## Robot replacement
+Replace ```robot``` in ```calvin_env/conf/config_data_collection.yaml```. Possible options ```panda_longer_finger```, ```ur5```, ```ur5_with_panda_gripper```
