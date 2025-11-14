@@ -1,14 +1,12 @@
 import trimesh
-from pathlib import Path
-import pybullet as p, time, os
 import numpy as np
 from math import sin, cos
 from urdf_parser_py.urdf import URDF
 
-BASE = "/Users/dariakulikova/uni/project/"
+BASE = "/home/lagandua/projects/diwa-ce/"
 URDF_PATH = "calvin_env/data/calvin_table_D/urdf/calvin_table_D.urdf"
 MESH_PATH = "calvin_env/data/calvin_table_D/meshes/drawer_link.obj"
-DATA_PATH  = "dataset/calvin_debug_dataset/training"
+DATA_PATH  = "/home/lagandua/data/calvin_debug_dataset/validation"
 
 target_joint = "base__drawer"
 
@@ -152,7 +150,7 @@ def flat_indices(indices):
     return [ind_pair for sub_indices in indices for ind_pair in sub_indices]
 
 
-def split_dataset(data_path=BASE+DATA_PATH):
+def split_dataset(data_path=DATA_PATH):
     world_mins, world_maxs = get_world_coordinates()
     indices = np.load(f"{data_path}/ep_start_end_ids.npy")
 

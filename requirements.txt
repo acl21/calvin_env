@@ -12,3 +12,5 @@ opencv-python
 pandas
 pybullet
 scipy
+trimesh
+urdf-parser-py

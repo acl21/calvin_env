@@ -301,24 +301,19 @@ def zoom_camera(env, factor=1.0):
 @hydra.main(config_path="../../conf", config_name="config_data_collection")
 def run_env(cfg):
     env = hydra.utils.instantiate(cfg.env, show_gui=True, use_vr=False, use_scene_info=True)
-    path = "/Users/dariakulikova/uni/project/dataset/calvin_debug_dataset/training/"
+    while True:
+        action = {"action": np.array((0., 0, 0, 0, 0, 0, 1)),
+                  "type": "cartesian_rel"}
+        # cartesian actions can also be input directly as numpy arrays
+        # action = np.array((0., 0, 0, 0, 0, 0, 1))
 
-    # indices = np.load(path + "ep_start_end_ids.npy")
-    indices = np.load(path + "ep_start_end_ids_drawer.npy")
-    # indices = np.load(path + "ep_start_end_ids_non_drawer.npy")
+        # relative action in joint space
+        # action = {"action": np.array((0., 0, 0, 0, 0, 0, 0, 1)),
+        #           "type": "joint_rel"}
 
-
-    zoom_camera(env, 0.3)
-    for segment in indices:
-        episode = np.load(f"{path}episode_{segment[0]:07d}.npz", allow_pickle=True)
-        env.reset(scene_obs=episode["scene_obs"])
-        for ind in range(segment[0], segment[1] + 1):
-            episode = np.load(f"{path}episode_{ind:07d}.npz", allow_pickle=True)
-            pos, orient, grip = episode["actions"][:3], episode["actions"][3:6], (episode["actions"][6],)
-            env.step((pos, orient, grip))
-            env.render()
-            time.sleep(0.01)
-        time.sleep(0.5)
+        env.step(action)
+        # env.render()
+        time.sleep(0.01)
 
 
 if __name__ == "__main__":
