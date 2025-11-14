@@ -1,3 +1,4 @@
+import os
 import trimesh
 import numpy as np
 from math import sin, cos
@@ -6,7 +7,7 @@ from urdf_parser_py.urdf import URDF
 BASE = "/home/lagandua/projects/diwa-ce/"
 URDF_PATH = "calvin_env/data/calvin_table_D/urdf/calvin_table_D.urdf"
 MESH_PATH = "calvin_env/data/calvin_table_D/meshes/drawer_link.obj"
-DATA_PATH  = "/home/lagandua/data/calvin_debug_dataset/validation"
+DATA_PATH  = "/home/lagandua/data/task_D_D/"
 
 target_joint = "base__drawer"
 
@@ -65,7 +66,7 @@ def get_world_coordinates():
     return world_mins, world_maxs
 
 
-def get_positive_indices(mins, maxs, indices, data_path=BASE+DATA_PATH):
+def get_positive_indices(mins, maxs, indices, split_path):
     is_inside = False
     positive_indices = []
     start_idx = 0
@@ -73,7 +74,7 @@ def get_positive_indices(mins, maxs, indices, data_path=BASE+DATA_PATH):
     for segment in indices:
         cur_pos_indices = []
         for idx in range(segment[0], segment[1] + 1):
-            episode = np.load(f"{data_path}/episode_{idx:07d}.npz", allow_pickle=True)
+            episode = np.load(f"{split_path}/episode_{idx:07d}.npz", allow_pickle=True)
             pos = episode["actions"][:3]
 
             if all(pos >= mins) and all(pos <= maxs):
@@ -150,16 +151,21 @@ def flat_indices(indices):
     return [ind_pair for sub_indices in indices for ind_pair in sub_indices]
 
 
-def split_dataset(data_path=DATA_PATH):
-    world_mins, world_maxs = get_world_coordinates()
-    indices = np.load(f"{data_path}/ep_start_end_ids.npy")
+def split_dataset():
+    data_path = os.path.join(BASE, DATA_PATH)
+    for split in ["training", "validation"]:
+        split_path = os.path.join(data_path, split)
+        world_mins, world_maxs = get_world_coordinates()
+        indices = np.load(f"{split_path}/ep_start_end_ids.npy")
 
-    drawer_indices = get_positive_indices(world_mins, world_maxs, indices, data_path)
-    drawer_indices = expand_indices(drawer_indices, indices)
-    np.save(f"{data_path}/ep_start_end_ids_drawer.npy", np.array(flat_indices(drawer_indices)))
+        drawer_indices = get_positive_indices(world_mins, world_maxs, indices, split_path)
+        drawer_indices = expand_indices(drawer_indices, indices)
+        np.save(f"{split_path}/ep_start_end_ids_drawer.npy", np.array(flat_indices(drawer_indices)))
 
-    non_drawer_indices = get_negative_indices(drawer_indices, indices)
-    np.save(f"{data_path}/ep_start_end_ids_non_drawer.npy", np.array(flat_indices(non_drawer_indices)))
+        non_drawer_indices = get_negative_indices(drawer_indices, indices)
+        np.save(f"{split_path}/ep_start_end_ids_non_drawer.npy", np.array(flat_indices(non_drawer_indices)))
+    
+    print("Dataset splitting completed successfully for both training and validation splits.")
 
 
 if __name__ == "__main__":
