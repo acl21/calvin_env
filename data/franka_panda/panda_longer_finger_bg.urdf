@@ -63,7 +63,7 @@
         <mesh filename="package://meshes/visual/link2.obj"/>
       </geometry>
       <material name="panda_blue">
-        <color rgba="0.53 0.68 0.78 1.0"/>
+        <color rgba="0.59 0.75 0.85 1.0"/>
       </material>
     </visual>
     <collision>
@@ -71,7 +71,7 @@
         <mesh filename="package://meshes/collision/link2.obj"/>
       </geometry>
       <material name="panda_blue">
-        <color rgba="0.53 0.68 0.78 1.0"/>
+        <color rgba="0.59 0.75 0.85.0"/>
       </material>
     </collision>
   </link>
@@ -122,7 +122,7 @@
         <mesh filename="package://meshes/visual/link4.obj"/>
       </geometry>
       <material name="panda_blue">
-        <color rgba="0.53 0.68 0.78 1.0"/>
+        <color rgba="0.59 0.75 0.85 1.0"/>
       </material>
     </visual>
     <collision>
@@ -130,7 +130,7 @@
         <mesh filename="package://meshes/collision/link4.obj"/>
       </geometry>
       <material name="panda_blue">
-        <color rgba="0.53 0.68 0.78 1.0"/>
+        <color rgba="0.59 0.75 0.85 1.0"/>
       </material>
     </collision>
   </link>
@@ -180,7 +180,7 @@
         <mesh filename="package://meshes/visual/link6.obj"/>
       </geometry>
       <material name="panda_blue">
-        <color rgba="0.53 0.68 0.78 1.0"/>
+        <color rgba="0.59 0.75 0.85 1.0"/>
       </material>
     </visual>
     <collision>
@@ -188,7 +188,7 @@
         <mesh filename="package://meshes/collision/link6.obj"/>
       </geometry>
       <material name="panda_blue">
-        <color rgba="0.53 0.68 0.78 1.0"/>
+        <color rgba="0.59 0.75 0.85 1.0"/>
       </material>
     </collision>
   </link>
