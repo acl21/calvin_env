@@ -34,11 +34,11 @@ def save_data_from_obs(data_path, ind, obs, action):
             data[key] = obs[key]
     save_frame(data_path, ind, data)
 
-@hydra.main(config_path="../../conf", config_name="config_bgfranka")
+@hydra.main(config_path="../../conf", config_name="config_human_arm")
 def regenerate_calvin_data(cfg):
     env = hydra.utils.instantiate(cfg.env, show_gui=False, use_vr=False, use_scene_info=True)
-    src_data_path = "/home/lagandua/data/task_D_D/"
-    tgt_data_path = "/home/lagandua/data/task_D_D_bgfranka/"
+    src_data_path = "/home/lagandua/data/calvin_debug_dataset/"
+    tgt_data_path = "/home/lagandua/data/calvin_debug_dataset_hand2/"
     os.makedirs(tgt_data_path, exist_ok=True)
     id_list_name = "ep_start_end_ids.npy"
 

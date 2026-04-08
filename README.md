@@ -1,5 +1,6 @@
 # calvin_env
 
+Supports CALVIN environment with a human arm in the scene instead of the Franka robot.
 
 
 ## Installation
@@ -11,9 +12,31 @@ cd ..
 pip install -e .
 ```
 
-## Robot replacement
-Replace ```robot``` in ```calvin_env/conf/config_ur5.yaml```. Possible options ```panda_longer_finger```, ```ur5```, ```ur5_with_panda_gripper```, ```ur5_with_panda_gripper_long_finger```
+## Human Arm 
 
+### To calibrate human arm pose
+```bash
+python calvin_env/envs/play_env_table_calibrate_armpose.py
+```
+
+Use these keys in the PyBullet GUI window:
+
+J / L: x - / +
+I / K: y + / -
+U / O: z + / -
+R / F: roll + / -
+T / B: pitch + / -
+Y / H: yaw + / -
+= / -: scale + / -
+P: print current xyz/rpy/scale to logs
+
+### Regenerate CALVIN data with the human arm
+```bash
+python scripts/regenerate_calvin_humanarm_data.py
+```
+The above script can regenerate CALVIN data with UR5 robot in the environment. To choose which data to store, change `DATA_KEYS` variable. Make sure the above script is using the config `config_human_arm.yaml`.
+
+<!-- 
 ## Split dataset
 ```bash
 python scripts/split_calvin_data_drawer.py
@@ -37,6 +60,6 @@ The above script can regenerate CALVIN data with UR5 robot in the environment. T
 ```bash
 python scripts/filter_calvin_data.py
 ```
-The above script simply copies frames from source to target path given a ```ep_start_end_ids.npy``` file. 
+The above script simply copies frames from source to target path given a ```ep_start_end_ids.npy``` file.  -->
 
 

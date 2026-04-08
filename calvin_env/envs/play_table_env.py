@@ -133,7 +133,22 @@ class PlayTableSimEnv(gym.Env):
         self.p.setGravity(0, 0, -9.8, physicsClientId=self.cid)
 
         self.robot.load()
+        self._hide_robot_visuals_except_hand()
         self.scene.load()
+
+    def _hide_robot_visuals_except_hand(self):
+        """Force-hide all robot visuals except the human hand link."""
+        if not self.show_gui:
+            return
+        keep_links = {"human_hand_visual"}
+        uid = self.robot.robot_uid
+        # Base link (e.g., panda_link0) uses index -1 in PyBullet.
+        self.p.changeVisualShape(uid, -1, rgbaColor=[0.0, 0.0, 0.0, 0.0], physicsClientId=self.cid)
+        for joint_idx in range(self.p.getNumJoints(uid, physicsClientId=self.cid)):
+            joint_info = self.p.getJointInfo(uid, joint_idx, physicsClientId=self.cid)
+            link_name = joint_info[12].decode("utf-8")
+            if link_name not in keep_links:
+                self.p.changeVisualShape(uid, joint_idx, rgbaColor=[0.0, 0.0, 0.0, 0.0], physicsClientId=self.cid)
 
     def close(self):
         if self.ownsPhysicsClient:
@@ -298,7 +313,7 @@ def zoom_camera(env, factor=1.0):
     )
 
 
-@hydra.main(config_path="../../conf", config_name="config_data_collection")
+@hydra.main(config_path="../../conf", config_name="config_human_arm")
 def run_env(cfg):
     env = hydra.utils.instantiate(cfg.env, show_gui=True, use_vr=False, use_scene_info=True)
     while True:
