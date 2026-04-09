@@ -3,9 +3,15 @@
 Supports CALVIN environment with a human arm in the scene.
 
 
-|     |
-| --- |
-|     |
+<table>
+  <tr>
+    <td align="center">
+      <img src="docs/static.gif" alt="First GIF" width="200" />
+      <img src="docs/gripper.gif" alt="Second GIF" width="200" />
+      <br />
+    </td>
+  </tr>
+</table>
 
 
 ## Installation
