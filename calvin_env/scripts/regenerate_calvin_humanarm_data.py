@@ -37,8 +37,8 @@ def save_data_from_obs(data_path, ind, obs, action):
 @hydra.main(config_path="../../conf", config_name="config_human_arm")
 def regenerate_calvin_data(cfg):
     env = hydra.utils.instantiate(cfg.env, show_gui=False, use_vr=False, use_scene_info=True)
-    src_data_path = "/home/lagandua/data/calvin_debug_dataset/"
-    tgt_data_path = "/home/lagandua/data/calvin_debug_dataset_hand2/"
+    src_data_path = "/home/lagandua/data/task_D_D/"
+    tgt_data_path = "/home/lagandua/data/task_D_D_arm/"
     os.makedirs(tgt_data_path, exist_ok=True)
     id_list_name = "ep_start_end_ids.npy"
 
@@ -56,7 +56,5 @@ def regenerate_calvin_data(cfg):
                 for _ in range(5):
                     obs = env.reset(robot_obs=episode["robot_obs"], scene_obs=episode["scene_obs"])          
                 save_data_from_obs(tgt_split_path, ind, obs, episode["rel_actions"])
-
-
 if __name__ == "__main__":
     regenerate_calvin_data()

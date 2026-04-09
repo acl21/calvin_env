@@ -138,8 +138,6 @@ class PlayTableSimEnv(gym.Env):
 
     def _hide_robot_visuals_except_hand(self):
         """Force-hide all robot visuals except the human hand link."""
-        if not self.show_gui:
-            return
         keep_links = {"human_hand_visual"}
         uid = self.robot.robot_uid
         # Base link (e.g., panda_link0) uses index -1 in PyBullet.
@@ -327,7 +325,7 @@ def run_env(cfg):
         #           "type": "joint_rel"}
 
         env.step(action)
-        # env.render()
+        env.render()
         time.sleep(0.01)
 
 
