@@ -51,8 +51,9 @@ class PlayTableSimEnv(gym.Env):
         self.use_egl = use_egl
         self.control_freq = control_freq
         self.action_repeat = int(bullet_time_step // control_freq)
-        render_width = max([cameras[cam].width for cam in cameras]) if cameras else None
-        render_height = max([cameras[cam].height for cam in cameras]) if cameras else None
+        cameras = cameras or {}
+        render_width = max(cameras[cam].width for cam in cameras) if len(cameras) else None
+        render_height = max(cameras[cam].height for cam in cameras) if len(cameras) else None
         self.initialize_bullet(bullet_time_step, render_width, render_height)
         self.np_random = None
         self.seed(seed)
@@ -137,9 +138,15 @@ class PlayTableSimEnv(gym.Env):
         self.scene.load()
 
     def _hide_robot_visuals_except_hand(self):
-        """Force-hide all robot visuals except the human hand link."""
+        """Hide robot meshes when a human-hand visual link is present; no-op otherwise."""
         keep_links = {"human_hand_visual"}
         uid = self.robot.robot_uid
+        link_names = set()
+        for joint_idx in range(self.p.getNumJoints(uid, physicsClientId=self.cid)):
+            joint_info = self.p.getJointInfo(uid, joint_idx, physicsClientId=self.cid)
+            link_names.add(joint_info[12].decode("utf-8"))
+        if not keep_links.intersection(link_names):
+            return
         # Base link (e.g., panda_link0) uses index -1 in PyBullet.
         self.p.changeVisualShape(uid, -1, rgbaColor=[0.0, 0.0, 0.0, 0.0], physicsClientId=self.cid)
         for joint_idx in range(self.p.getNumJoints(uid, physicsClientId=self.cid)):
@@ -242,7 +249,8 @@ class PlayTableSimEnv(gym.Env):
             if delta_t >= (1.0 / self.control_freq):
                 log.debug(f"Act FPS: {1 / delta_t:.0f}")
                 self.prev_time = time.time()
-                self.robot.apply_action(action)
+                if action is not None:
+                    self.robot.apply_action(action)
             self.fps_controller.step()
         # for RL call step simulation repeat
         else:

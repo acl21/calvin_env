@@ -1,7 +1,8 @@
 seed: 0
 use_vr: true
+enable_monitor: true
 data_path: data
-save_dir: /tmp
+save_dir: /export/home/lagandua/projects/calvin_env/data/teleop
 record: true
 
 hydra:

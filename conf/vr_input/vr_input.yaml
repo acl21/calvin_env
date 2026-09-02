@@ -1,7 +1,17 @@
 _target_: calvin_env.io_utils.vr_input.VrInput
-limit_angle: [90, 0, 0, -1]
+_recursive_: false
+robot: ???
+workspace_limits: [[-0.45, -0.30, 0.38], [0.45, 0.35, 0.85]]
+button_hold_threshold: 60
+tracking_error_threshold: 0.05
 visualize_vr_pos: true
-reset_button_queue_len: 60
-
-defaults:
-  - vr_controller: vive
+calibration_forward: [0.0, 1.0]
+invert_relative_orientation: false
+vr_controller:
+  POSITION: 1
+  ORIENTATION: 2
+  ANALOG: 3
+  BUTTONS: 6
+  BUTTON_A: 2  # dead man's switch
+  BUTTON_B: 1  # record / delete
+  vr_controller_id: 3

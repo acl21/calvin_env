@@ -11,6 +11,7 @@ from typing import Union
 import git
 import numpy as np
 import quaternion
+from scipy.spatial.transform import Rotation as R
 
 # A logger for this file
 logger = logging.getLogger(__name__)
@@ -93,6 +94,57 @@ def angle_between_quaternions(q1, q2):
 
     theta = 2 * np.arcsin(np.linalg.norm((q1 * q2.conjugate()).vec))
     return theta
+
+
+def z_angle_between(a, b):
+    """Signed angle between 2d/3d vectors around the z axis (right-handed)."""
+    return np.arctan2(b[1], b[0]) - np.arctan2(a[1], a[0])
+
+
+def pos_orn_to_matrix(pos, orn):
+    """
+    Build a 4x4 homogeneous transform.
+
+    Args:
+        pos: (3,) position
+        orn: (4,) xyzw quaternion or (3,) xyz euler angles
+    """
+    mat = np.eye(4)
+    if len(orn) == 4:
+        mat[:3, :3] = R.from_quat(orn).as_matrix()
+    elif len(orn) == 3:
+        mat[:3, :3] = R.from_euler("xyz", orn).as_matrix()
+    else:
+        raise ValueError(f"Orientation must have length 3 or 4, got {len(orn)}")
+    mat[:3, 3] = pos
+    return mat
+
+
+def restrict_workspace(workspace_limits, target_pos):
+    """
+    Clip target_pos at workspace limits.
+
+    Args:
+        workspace_limits: Bounding box [[x_min, y_min, z_min], [x_max, y_max, z_max]]
+            or hollow cylinder [r_in, r_out, z_min, z_max].
+        target_pos: absolute target position (x, y, z).
+    """
+    workspace_limits = np.array(workspace_limits)
+    target_pos = np.array(target_pos, dtype=float)
+    if len(workspace_limits) == 2:
+        return np.clip(target_pos, workspace_limits[0], workspace_limits[1])
+    if len(workspace_limits) == 4:
+        clipped_pos = target_pos.copy()
+        r_in, r_out, z_min, z_max = workspace_limits
+        dist_center = np.sqrt(target_pos[0] ** 2 + target_pos[1] ** 2)
+        if dist_center > r_out or dist_center < r_in:
+            theta = np.arctan2(target_pos[1], target_pos[0])
+            radius = r_out if dist_center > r_out else r_in
+            clipped_pos[0] = np.cos(theta) * radius
+            clipped_pos[1] = np.sin(theta) * radius
+        clipped_pos[2] = np.clip(target_pos[2], z_min, z_max)
+        return clipped_pos
+    raise ValueError("workspace_limits must be a bounding box (len 2) or cylinder (len 4)")
 
 
 def angle_between(v1, v2):

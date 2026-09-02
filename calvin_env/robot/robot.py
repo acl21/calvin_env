@@ -178,6 +178,11 @@ class Robot:
         self.target_pos = np.array(tcp_pos)
         self.target_orn = np.array(tcp_orn)
 
+    def get_tcp_pos_orn(self):
+        """Return TCP position and xyzw quaternion, independent of euler_obs."""
+        tcp_pos, tcp_orn = p.getLinkState(self.robot_uid, self.tcp_link_id, physicsClientId=self.cid)[:2]
+        return np.array(tcp_pos), np.array(tcp_orn)
+
     def get_observation(self):
         """
         returns:
