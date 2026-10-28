@@ -17,19 +17,26 @@ from calvin_env.utils.utils import count_frames, get_episode_lengths, set_egl_de
 # A logger for this file
 log = logging.getLogger(__name__)
 
+_RECORDING_FIRST_FRAME = "000000000000.pickle"
+
 
 @hydra.main(config_path="../conf", config_name="config_rendering")
 def main(cfg):
     log.info("pyBullet Data Renderer")
     log.info("Determining maximum frame")
 
-    recording_dir = (Path(hydra.utils.get_original_cwd()) / cfg.load_dir).absolute()
-    max_frames = count_frames(recording_dir)
+    recording_dirs = resolve_load_dirs(cfg.load_dir)
+    log.info(f"Loading {len(recording_dirs)} recording director{'y' if len(recording_dirs) == 1 else 'ies'}")
+    for rec_dir in recording_dirs:
+        log.info(f"  {rec_dir}")
+
+    frame_paths, episode_lengths, render_start_end_ids = collect_recording_frames(recording_dirs)
+    max_frames = len(frame_paths)
     log.info(f"Found continuous interval of {max_frames} frames without gaps")
 
     num_prev_rendered_episodes = num_previously_rendered_episodes()
     if num_prev_rendered_episodes == 0:
-        playback_cfg = build_rendering_config(recording_dir, rendering_config=cfg)
+        playback_cfg = build_rendering_config(recording_dirs, rendering_config=cfg)
     else:
         playback_cfg = load_rendering_config(cfg)
 
@@ -37,7 +44,7 @@ def main(cfg):
     log.info(f"Starting {cfg.processes} processes")
 
     if playback_cfg.set_static_cam:
-        playback_cfg = set_static_cams_from_gui(playback_cfg, recording_dir, max_frames)
+        playback_cfg = set_static_cams_from_gui(playback_cfg, frame_paths, max_frames)
 
     if cfg.processes != 1 and playback_cfg.show_gui:
         log.warning("Multiprocess rendering requires headless mode, setting cfg.show_gui = False")
@@ -45,7 +52,6 @@ def main(cfg):
     # in order to distribute the rendering to multiple processes, predetermine the lengths of the
     # (rendered) episodes and to which (recording) file ids the episode start and end correspond
     # a rendered episode does not contain the done frame, thus length(render_episode) = length(recording_episode) -1
-    episode_lengths, render_start_end_ids = get_episode_lengths(cfg.load_dir, max_frames)
     # episode_lengths = episode_lengths[:1]
     # render_start_end_ids = render_start_end_ids[:1]
 
@@ -68,7 +74,7 @@ def main(cfg):
             Process(
                 target=worker_run,
                 args=(
-                    recording_dir,
+                    frame_paths,
                     playback_cfg,
                     proc_num,
                     proc_start_ids[proc_num],
@@ -82,14 +88,97 @@ def main(cfg):
         deque(map(lambda proc: proc.start(), processes))
         deque(map(lambda proc: proc.join(), processes))
     else:
-        worker_run(recording_dir, playback_cfg, 0, 0, max_frames, num_prev_rendered_episodes)
+        worker_run(frame_paths, playback_cfg, 0, 0, max_frames, num_prev_rendered_episodes)
     save_ep_lens(episode_lengths, num_prev_rendered_episodes)
 
     log.info("All workers done")
 
 
-def build_rendering_config(recording_dir, rendering_config):
-    merged_conf = omegaconf.OmegaConf.load(Path(recording_dir) / ".hydra" / "config.yaml")
+def _to_absolute_path(path):
+    path = Path(path)
+    if not path.is_absolute():
+        path = Path(hydra.utils.get_original_cwd()) / path
+    return path.absolute()
+
+
+def is_recording_dir(directory):
+    return (Path(directory) / _RECORDING_FIRST_FRAME).is_file()
+
+
+def discover_recording_dirs(load_dir):
+    """
+    If load_dir itself contains pickle frames, treat it as a single recording.
+    Otherwise search subdirectories for teleop run folders that contain frames.
+    """
+    load_dir = Path(load_dir)
+    if is_recording_dir(load_dir):
+        return [load_dir]
+    recording_dirs = sorted({p.parent for p in load_dir.rglob(_RECORDING_FIRST_FRAME)})
+    if not recording_dirs:
+        raise FileNotFoundError(
+            f"No teleop recordings found in {load_dir}. "
+            f"Expected {_RECORDING_FIRST_FRAME} in this directory or its subdirectories."
+        )
+    return recording_dirs
+
+
+def resolve_load_dirs(load_dir):
+    """Accept a single path or a list of paths, each of which may be a recording or a parent folder."""
+    if isinstance(load_dir, (list, tuple, omegaconf.ListConfig)):
+        dirs = []
+        seen = set()
+        for path in load_dir:
+            for rec_dir in discover_recording_dirs(_to_absolute_path(path)):
+                if rec_dir not in seen:
+                    seen.add(rec_dir)
+                    dirs.append(rec_dir)
+        if not dirs:
+            raise FileNotFoundError(f"No teleop recordings found in {list(load_dir)}")
+        return dirs
+    return discover_recording_dirs(_to_absolute_path(load_dir))
+
+
+def collect_recording_frames(recording_dirs):
+    """
+    Concatenate complete episodes from all recording directories into one global frame list.
+
+    Incomplete trailing frames in a directory are skipped so episodes never span recordings.
+    For a single well-formed recording this is equivalent to iterating 000...pickle in order.
+    """
+    frame_paths = []
+    episode_lengths = []
+    render_start_end_ids = []
+    for rec_dir in recording_dirs:
+        n_frames = count_frames(rec_dir)
+        if n_frames == 0:
+            log.warning(f"Skipping empty recording directory: {rec_dir}")
+            continue
+        ep_lens, start_end_ids = get_episode_lengths(rec_dir, n_frames)
+        if not ep_lens:
+            log.warning(f"No complete episodes in {rec_dir}, skipping")
+            continue
+        log.info(f"Found {len(ep_lens)} episodes ({n_frames} frames) in {rec_dir}")
+        for start, end in start_end_ids:
+            global_start = len(frame_paths)
+            for local_frame in range(start, end):
+                frame_paths.append(rec_dir / f"{local_frame:012d}.pickle")
+            render_start_end_ids.append([global_start, len(frame_paths)])
+        episode_lengths.extend(ep_lens)
+    if not frame_paths:
+        raise FileNotFoundError("No complete episodes found in the provided recording directories.")
+    return frame_paths, episode_lengths, render_start_end_ids
+
+
+def build_rendering_config(recording_dirs, rendering_config):
+    if not isinstance(recording_dirs, (list, tuple)):
+        recording_dirs = [recording_dirs]
+    config_dir = next((Path(d) for d in recording_dirs if (Path(d) / ".hydra" / "config.yaml").is_file()), None)
+    if config_dir is None:
+        raise FileNotFoundError(
+            "Could not find .hydra/config.yaml in any recording directory. "
+            f"Looked in: {', '.join(str(d) for d in recording_dirs)}"
+        )
+    merged_conf = omegaconf.OmegaConf.load(Path(config_dir) / ".hydra" / "config.yaml")
     merged_conf = omegaconf.OmegaConf.merge(merged_conf, rendering_config)
     hydra.core.utils._save_config(merged_conf, "merged_config.yaml", Path(os.getcwd(), ".hydra"))
     return merged_conf
@@ -146,7 +235,7 @@ def state_to_action(info):
     return action
 
 
-def set_static_cams_from_gui(cfg, load_dir, max_frames):
+def set_static_cams_from_gui(cfg, frame_paths, max_frames):
     import cv2
 
     assert cfg.env.show_gui
@@ -169,7 +258,7 @@ def set_static_cams_from_gui(cfg, load_dir, max_frames):
             up_vector = cam.up_vector
             fov = cam.fov
             while True:
-                file_path = load_dir / f"{frame:012d}.pickle"
+                file_path = Path(frame_paths[frame])
                 _, _, _ = env.reset_from_storage(file_path)
                 env.p.stepSimulation()
                 frame_rgbs, frame_depths = env.get_camera_obs()
@@ -241,7 +330,7 @@ def set_static_cams_from_gui(cfg, load_dir, max_frames):
     return cfg
 
 
-def worker_run(load_dir, rendering_cfg, proc_num, start_frame, stop_frame, episode_index):
+def worker_run(frame_paths, rendering_cfg, proc_num, start_frame, stop_frame, episode_index):
     log.info(f"[{proc_num}] Starting worker {proc_num}")
     set_egl_device(0)
     env = hydra.utils.instantiate(rendering_cfg.env)
@@ -256,7 +345,7 @@ def worker_run(load_dir, rendering_cfg, proc_num, start_frame, stop_frame, episo
         [],
     )
     for frame in range(start_frame, stop_frame):
-        file_path = load_dir / f"{frame:012d}.pickle"
+        file_path = Path(frame_paths[frame])
         state_ob, done, info = env.reset_from_storage(file_path)
         action = state_to_action(info)
         robot_obs.append(state_ob["robot_obs"])
