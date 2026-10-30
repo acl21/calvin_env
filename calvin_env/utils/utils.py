@@ -123,6 +123,31 @@ class EglDeviceNotFoundError(Exception):
     """Raised when EGL device cannot be found"""
 
 
+def _build_egl_options(dir_path: Path) -> None:
+    print("Building EGL_options.o")
+    subprocess.check_call(["bash", "build.sh"], cwd=dir_path)
+
+
+def _run_egl_options(dir_path: Path, env=None) -> subprocess.CompletedProcess:
+    """Run EGL_options.o, rebuilding it if missing or linked against a newer glibc."""
+    binary = dir_path / "EGL_options.o"
+    if not os.path.isfile(binary):
+        if os.environ.get("LOCAL_RANK", "0") == "0":
+            _build_egl_options(dir_path)
+        else:
+            # In case EGL_options.o has to be built and multiprocessing is used, give rank 0 process time to build
+            time.sleep(5)
+    result = subprocess.run(["./EGL_options.o"], capture_output=True, cwd=dir_path, env=env)
+    stderr = result.stderr.decode("utf-8", errors="replace")
+    # Binary was compiled on a newer OS (e.g. GLIBC_2.38) than this machine.
+    if result.returncode != 0 and ("GLIBC" in stderr or "GLIBCXX" in stderr):
+        if os.environ.get("LOCAL_RANK", "0") == "0":
+            logger.warning("EGL_options.o is incompatible with this system; rebuilding.\n%s", stderr.strip())
+            _build_egl_options(dir_path)
+            result = subprocess.run(["./EGL_options.o"], capture_output=True, cwd=dir_path, env=env)
+    return result
+
+
 def get_egl_device_id(cuda_id: int) -> Union[int]:
     """
     >>> i = get_egl_device_id(0)
@@ -131,19 +156,20 @@ def get_egl_device_id(cuda_id: int) -> Union[int]:
     """
     assert isinstance(cuda_id, int), "cuda_id has to be integer"
     dir_path = Path(__file__).absolute().parents[2] / "egl_check"
-    if not os.path.isfile(dir_path / "EGL_options.o"):
-        if os.environ.get("LOCAL_RANK", "0") == "0":
-            print("Building EGL_options.o")
-            subprocess.call(["bash", "build.sh"], cwd=dir_path)
-        else:
-            # In case EGL_options.o has to be built and multiprocessing is used, give rank 0 process time to build
-            time.sleep(5)
-    result = subprocess.run(["./EGL_options.o"], capture_output=True, cwd=dir_path)
-    n = int(result.stderr.decode("utf-8").split(" of ")[1].split(".")[0])
+    result = _run_egl_options(dir_path)
+    stderr = result.stderr.decode("utf-8", errors="replace")
+    match = re.search(r" of (\d+)", stderr)
+    if not match:
+        raise RuntimeError(
+            "Failed to query EGL devices. Rebuild calvin_env/egl_check/EGL_options.o "
+            f"(cd calvin_env/egl_check && bash build.sh).\n"
+            f"returncode={result.returncode}\nstderr:\n{stderr}"
+        )
+    n = int(match.group(1))
     for egl_id in range(n):
         my_env = os.environ.copy()
         my_env["EGL_VISIBLE_DEVICE"] = str(egl_id)
-        result = subprocess.run(["./EGL_options.o"], capture_output=True, cwd=dir_path, env=my_env)
+        result = _run_egl_options(dir_path, env=my_env)
         match = re.search(r"CUDA_DEVICE=[0-9]+", result.stdout.decode("utf-8"))
         if match:
             current_cuda_id = int(match[0].split("=")[1])
